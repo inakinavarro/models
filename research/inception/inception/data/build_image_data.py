@@ -90,6 +90,11 @@ tf.app.flags.DEFINE_integer('validation_shards', 2,
 tf.app.flags.DEFINE_integer('num_threads', 2,
                             'Number of threads to preprocess the images.')
 
+tf.app.flags.DEFINE_boolean('sparse_labels', False,
+                            """If True labels are stored as a class number. 
+                            If False labels are stored as a vector, allowing
+                            multi-label training.""")
+
 # The labels file contains a list of valid labels are held in this file.
 # Assumes that the file contains entries as such:
 #   dog
@@ -378,7 +383,14 @@ def _find_image_files(data_dir, labels_file):
     jpeg_file_path = '%s/%s/*' % (data_dir, text)
     matching_files = tf.gfile.Glob(jpeg_file_path)
 
-    labels.extend([label_index] * len(matching_files))
+    if FLAGS.sparse_labels:
+      labels.extend([label_index] * len(matching_files))
+    else:
+      num_labels = len(unique_labels)
+      label_list = [0] * (num_labels + 1)
+      label_list[label_index] = 1
+      labels.extend([label_list] * len(matching_files))
+
     texts.extend([text] * len(matching_files))
     filenames.extend(matching_files)
 

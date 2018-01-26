@@ -149,9 +149,8 @@ def train(target, dataset, cluster_spec):
           batch_size=FLAGS.batch_size,
           num_preprocess_threads=FLAGS.num_preprocess_threads)
 
-      # Number of classes in the Dataset label set plus 1.
-      # Label 0 is reserved for an (unused) background class.
-      num_classes = dataset.num_classes() + 1
+      # Number of classes in the Dataset label.
+      num_classes = dataset.num_classes()
       logits = inception.inference(images, num_classes, for_training=True)
       # Add classification loss.
       inception.loss(logits, labels)

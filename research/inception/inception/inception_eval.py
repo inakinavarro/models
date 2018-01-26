@@ -139,9 +139,8 @@ def evaluate(dataset):
     # Get images and labels from the dataset.
     images, labels = image_processing.inputs(dataset)
 
-    # Number of classes in the Dataset label set plus 1.
-    # Label 0 is reserved for an (unused) background class.
-    num_classes = dataset.num_classes() + 1
+    # Number of classes in the Dataset label.
+    num_classes = dataset.num_classes()
 
     # Build a Graph that computes the logits predictions from the
     # inference model.

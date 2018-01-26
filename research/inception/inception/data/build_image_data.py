@@ -55,8 +55,7 @@ contains the following fields:
   image/filename: string containing the basename of the image file
             e.g. 'n01440764_10026.JPEG' or 'ILSVRC2012_val_00000293.JPEG'
   image/class/label: integer specifying the index in a classification layer.
-    The label ranges from [0, num_labels] where 0 is unused and left as
-    the background class.
+    The label ranges from [0, num_labels -1]
   image/class/text: string specifying the human-readable version of the label
     e.g. 'dog'
 
@@ -376,7 +375,7 @@ def _find_image_files(data_dir, labels_file):
   texts = []
 
   # Leave label index 0 empty as a background class.
-  label_index = 1
+  label_index = 0
 
   # Construct the list of JPEG files and labels.
   for text in unique_labels:
@@ -387,7 +386,7 @@ def _find_image_files(data_dir, labels_file):
       labels.extend([label_index] * len(matching_files))
     else:
       num_labels = len(unique_labels)
-      label_list = [0] * (num_labels + 1)
+      label_list = [0] * (num_labels)
       label_list[label_index] = 1
       labels.extend([label_list] * len(matching_files))
 

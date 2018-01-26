@@ -218,9 +218,8 @@ def train(dataset):
 
     input_summaries = copy.copy(tf.get_collection(tf.GraphKeys.SUMMARIES))
 
-    # Number of classes in the Dataset label set plus 1.
-    # Label 0 is reserved for an (unused) background class.
-    num_classes = dataset.num_classes() + 1
+    # Number of classes in the Dataset label.
+    num_classes = dataset.num_classes()
 
      # Split the batch of images and labels for towers.
     images_splits = tf.split(axis=0, num_or_size_splits=FLAGS.num_gpus, value=images)

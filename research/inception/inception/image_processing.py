@@ -379,7 +379,7 @@ def parse_example_proto(example_serialized, num_labels):
     label_feature = tf.FixedLenFeature([1], dtype=tf.int64,
                                             default_value=-1)
   else:
-    label_feature = tf.FixedLenFeature([num_labels + 1],
+    label_feature = tf.FixedLenFeature([num_labels],
                                             dtype=tf.int64)
   feature_map = {
       'image/encoded': tf.FixedLenFeature([], dtype=tf.string,

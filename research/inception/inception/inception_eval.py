@@ -148,6 +148,8 @@ def evaluate(dataset):
     logits, _ = inception.inference(images, num_classes)
 
     # Calculate predictions.
+    if not FLAGS.sparse_labels:
+      labels = tf.argmax(labels, axis=1)
     top_1_op = tf.nn.in_top_k(logits, labels, 1)
     top_5_op = tf.nn.in_top_k(logits, labels, 5)
 

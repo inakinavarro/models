@@ -34,17 +34,21 @@
 #  ./download_and_preprocess_flowers.sh [data-dir]
 set -e
 
-if [ -z "$1" ]; then
-  echo "Usage: download_and_preprocess_flowers.sh [data dir]"
+if [ -z "$3" ]; then
+  echo "Usage: download_and_preprocess_flowers.sh [data dir] [rel_path_finaldata] [bool sparse_labels]"
   exit
 fi
 
 # Create the output and temporary directories.
 DATA_DIR="${1%/}"
+DATA_PREPARED_DIR="${2%/}"
+SPARSE_LABELS="${3%/}"
+
 SCRATCH_DIR="${DATA_DIR}/raw-data"
 mkdir -p "${DATA_DIR}"
 mkdir -p "${SCRATCH_DIR}"
-WORK_DIR="$0.runfiles/inception/inception"
+WORK_DIR="../../bazel-bin/inception"
+# WORK_DIR="/home/navarro/repos/models/research/inception/bazel-bin/inception"
 
 # Download the flowers data.
 DATA_URL="http://download.tensorflow.org/example_images/flower_photos.tgz"
@@ -88,9 +92,10 @@ done < "${LABELS_FILE}"
 # Build the TFRecords version of the image data.
 cd "${CURRENT_DIR}"
 BUILD_SCRIPT="${WORK_DIR}/build_image_data"
-OUTPUT_DIRECTORY="${DATA_DIR}"
+OUTPUT_DIRECTORY="${DATA_DIR}/${DATA_PREPARED_DIR}"
 "${BUILD_SCRIPT}" \
   --train_directory="${TRAIN_DIRECTORY}" \
   --validation_directory="${VALIDATION_DIRECTORY}" \
   --output_directory="${OUTPUT_DIRECTORY}" \
-  --labels_file="${LABELS_FILE}"
+  --labels_file="${LABELS_FILE}" \
+  --sparse_labels="${SPARSE_LABELS}"

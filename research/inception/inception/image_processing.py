@@ -69,7 +69,10 @@ tf.app.flags.DEFINE_integer('input_queue_memory_factor', 16,
                             """Default is ideal but try smaller values, e.g. """
                             """4, 2 or 1, if host memory is constrained. See """
                             """comments in code for more details.""")
-
+tf.app.flags.DEFINE_boolean('sparse_labels', False,
+                            """If True labels are stored as a class number. 
+                            If False labels are stored as a vector, allowing
+                            multi-label training.""")
 
 def inputs(dataset, batch_size=None, num_preprocess_threads=None):
   """Generate batches of ImageNet images for evaluation.
@@ -336,7 +339,7 @@ def image_preprocessing(image_buffer, bbox, train, thread_id=0):
   return image
 
 
-def parse_example_proto(example_serialized):
+def parse_example_proto(example_serialized, num_labels):
   """Parses an Example proto containing a training example of an image.
 
   The output of the build_image_data.py image preprocessing script is a dataset
@@ -372,11 +375,16 @@ def parse_example_proto(example_serialized):
     text: Tensor tf.string containing the human-readable label.
   """
   # Dense features in Example proto.
+  if FLAGS.sparse_labels:
+    label_feature = tf.FixedLenFeature([1], dtype=tf.int64,
+                                            default_value=-1)
+  else:
+    label_feature = tf.FixedLenFeature([num_labels + 1],
+                                            dtype=tf.int64)
   feature_map = {
       'image/encoded': tf.FixedLenFeature([], dtype=tf.string,
                                           default_value=''),
-      'image/class/label': tf.FixedLenFeature([1], dtype=tf.int64,
-                                              default_value=-1),
+      'image/class/label': label_feature,
       'image/class/text': tf.FixedLenFeature([], dtype=tf.string,
                                              default_value=''),
   }
@@ -389,6 +397,7 @@ def parse_example_proto(example_serialized):
                                    'image/object/bbox/ymax']})
 
   features = tf.parse_single_example(example_serialized, feature_map)
+
   label = tf.cast(features['image/class/label'], dtype=tf.int32)
 
   xmin = tf.expand_dims(features['image/object/bbox/xmin'].values, 0)
@@ -427,6 +436,7 @@ def batch_inputs(dataset, batch_size, train, num_preprocess_threads=None,
     ValueError: if data is not found
   """
   with tf.name_scope('batch_processing'):
+    num_labels = dataset.num_classes()
     data_files = dataset.data_files()
     if data_files is None:
       raise ValueError('No data files found for this dataset')
@@ -490,7 +500,7 @@ def batch_inputs(dataset, batch_size, train, num_preprocess_threads=None,
     for thread_id in range(num_preprocess_threads):
       # Parse a serialized Example proto to extract the image and metadata.
       image_buffer, label_index, bbox, _ = parse_example_proto(
-          example_serialized)
+          example_serialized, num_labels)
       image = image_preprocessing(image_buffer, bbox, train, thread_id)
       images_and_labels.append([image, label_index])
 
@@ -510,4 +520,7 @@ def batch_inputs(dataset, batch_size, train, num_preprocess_threads=None,
     # Display the training images in the visualizer.
     tf.summary.image('images', images)
 
-    return images, tf.reshape(label_index_batch, [batch_size])
+    if FLAGS.sparse_labels:
+      return images, tf.reshape(label_index_batch, [batch_size])
+    else:
+      return images, label_index_batch

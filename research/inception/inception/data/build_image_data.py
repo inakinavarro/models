@@ -74,6 +74,8 @@ import threading
 import numpy as np
 import tensorflow as tf
 
+import pandas as pd
+
 tf.app.flags.DEFINE_string('train_directory', '/tmp/',
                            'Training data directory')
 tf.app.flags.DEFINE_string('validation_directory', '/tmp/',
@@ -93,7 +95,8 @@ tf.app.flags.DEFINE_boolean('sparse_labels', False,
                             """If True labels are stored as a class number. 
                             If False labels are stored as a vector, allowing
                             multi-label training.""")
-
+tf.app.flags.DEFINE_boolean('generate_from_csv', True,
+                            """Generate dataset from csv file""")
 # The labels file contains a list of valid labels are held in this file.
 # Assumes that the file contains entries as such:
 #   dog
@@ -145,7 +148,8 @@ def _convert_to_example(filename, image_buffer, label, text, height, width):
       'image/class/label': _int64_feature(label),
       'image/class/text': _bytes_feature(tf.compat.as_bytes(text)),
       'image/format': _bytes_feature(tf.compat.as_bytes(image_format)),
-      'image/filename': _bytes_feature(tf.compat.as_bytes(os.path.basename(filename))),
+      'image/filename': 
+              _bytes_feature(tf.compat.as_bytes(os.path.basename(filename))),
       'image/encoded': _bytes_feature(tf.compat.as_bytes(image_buffer))}))
   return example
 
@@ -207,7 +211,7 @@ def _process_image(filename, coder):
 
   # Convert any PNG to JPEG's for consistency.
   if _is_png(filename):
-    print('Converting PNG to JPEG for %s' % filename)
+    # print('Converting PNG to JPEG for %s' % filename)
     image_data = coder.png_to_jpeg(image_data)
 
   # Decode the RGB JPEG.
@@ -369,7 +373,6 @@ def _find_image_files(data_dir, labels_file):
   print('Determining list of input files and labels from %s.' % data_dir)
   unique_labels = [l.strip() for l in tf.gfile.FastGFile(
       labels_file, 'r').readlines()]
-
   labels = []
   filenames = []
   texts = []
@@ -413,6 +416,75 @@ def _find_image_files(data_dir, labels_file):
         (len(filenames), len(unique_labels), data_dir))
   return filenames, texts, labels
 
+def _get_files_labels_csv(split_name, data_dir, labels_file):
+  """Build a list of all images files and labels in the data set.
+
+  Args:
+    split_name: string, name of the split or subdataset to process
+      It allows acces to the corresponding .csv file starting with
+      that name
+
+    data_dir: string, path to the root directory the dataset
+
+      The csv files contained in this folder have contain the
+      relative paths to images and columns of labels.
+
+    labels_file: string, path to the labels file.
+
+      The list of the column or columns which define the class or
+      labels. One column represents classification and the value in
+      the column represent the class. Multi column allows direct one
+      hot encoder needed for multilabeling problems.
+
+  Returns:
+    filenames: list of strings; each string is a path to an image file.
+    texts: list of empty strings
+    labels: list of integer or list of integer; each integer identifies
+    for the class or in the case of multilabeling the groundtruth for
+    the different labels.
+  """
+  path_csv = os.path.join(data_dir, split_name + '.csv')
+  print('Obtaining list of input files and labels from %s.' % path_csv)
+  unique_labels = [l.strip() for l in tf.gfile.FastGFile(
+      labels_file, 'r').readlines()]
+
+  # only one column indicating classes for now
+  assert len(unique_labels) == 1
+
+  df = pd.read_csv(path_csv)
+  df['abs_path'] = df.apply(lambda x: os.path.join(data_dir,
+                                                    x['rel_filepath']), axis=1)
+  df['text'] = ''
+  labels = df[unique_labels[0]].tolist()
+  texts = df['text'].tolist()
+  filenames = df['abs_path'].tolist()
+
+  if not FLAGS.sparse_labels:
+    # convert sparse encoding to dense
+    num_classes = max(labels) + 1
+    onehot_encoded = list()
+    for value in labels:
+      one_hot_value = [0 for _ in range(num_classes)]
+      one_hot_value[value] = 1
+      onehot_encoded.append(one_hot_value)
+    labels = onehot_encoded
+
+  # Shuffle the ordering of all image files in order to guarantee
+  # random ordering of the images with respect to label in the
+  # saved TFRecord files. Make the randomization repeatable.
+  shuffled_index = list(range(len(filenames)))
+  random.seed(12345)
+  random.shuffle(shuffled_index)
+
+  filenames = [filenames[i] for i in shuffled_index]
+  texts = [texts[i] for i in shuffled_index]
+  labels = [labels[i] for i in shuffled_index]
+
+  print('Found %d JPEG files across %d labels inside %s.' %
+        (len(filenames), len(unique_labels), data_dir))
+  return filenames, texts, labels
+
+
 
 def _process_dataset(name, directory, num_shards, labels_file):
   """Process a complete data set and save it as a TFRecord.
@@ -423,7 +495,11 @@ def _process_dataset(name, directory, num_shards, labels_file):
     num_shards: integer number of shards for this data set.
     labels_file: string, path to the labels file.
   """
-  filenames, texts, labels = _find_image_files(directory, labels_file)
+  if FLAGS.generate_from_csv:
+    filenames, texts, labels = _get_files_labels_csv(name, directory,
+                                                      labels_file)
+  else:
+    filenames, texts, labels = _find_image_files(directory, labels_file)
   _process_image_files(name, filenames, texts, labels, num_shards)
 
 

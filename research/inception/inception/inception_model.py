@@ -114,6 +114,8 @@ def loss(logits, labels, batch_size=None):
   if FLAGS.sparse_labels:
     # Reshape the labels into a dense Tensor of
     # shape [FLAGS.batch_size, num_classes].
+    # In multilable there cannot be sparse labels,
+    # so no do not convert to dense since it is already
     sparse_labels = tf.reshape(labels, [batch_size, 1])
     indices = tf.reshape(tf.range(batch_size), [batch_size, 1])
     concated = tf.concat(axis=1, values=[indices, sparse_labels])
@@ -124,20 +126,32 @@ def loss(logits, labels, batch_size=None):
   else:
     dense_labels = labels
 
+  if FLAGS.multilabel:
+    # Sigmoid cross entropy loss for the main loss prediction.
+    slim.losses.sigmoid_cross_entropy_loss(logits[0],
+                                   dense_labels,
+                                   label_smoothing=0.1,
+                                   weight=1.0)
 
-  # Cross entropy loss for the main softmax prediction.
-  slim.losses.cross_entropy_loss(logits[0],
-                                 dense_labels,
-                                 label_smoothing=0.1,
-                                 weight=1.0)
+    # Cross entropy loss for the auxiliary loss prediction.
+    slim.losses.sigmoid_cross_entropy_loss(logits[1],
+                                   dense_labels,
+                                   label_smoothing=0.1,
+                                   weight=0.4,
+                                   scope='aux_loss')
+  else:
+    # Cross entropy loss for the main softmax prediction.
+    slim.losses.cross_entropy_loss(logits[0],
+                                   dense_labels,
+                                   label_smoothing=0.1,
+                                   weight=1.0)
 
-  # Cross entropy loss for the auxiliary softmax head.
-  slim.losses.cross_entropy_loss(logits[1],
-                                 dense_labels,
-                                 label_smoothing=0.1,
-                                 weight=0.4,
-                                 scope='aux_loss')
-
+    # Cross entropy loss for the auxiliary softmax head.
+    slim.losses.cross_entropy_loss(logits[1],
+                                   dense_labels,
+                                   label_smoothing=0.1,
+                                   weight=0.4,
+                                   scope='aux_loss')
 
 def _activation_summary(x):
   """Helper to create summaries for activations.

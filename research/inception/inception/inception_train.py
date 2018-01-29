@@ -55,6 +55,8 @@ tf.app.flags.DEFINE_boolean('fine_tune', False,
 tf.app.flags.DEFINE_string('pretrained_model_checkpoint_path', '',
                            """If specified, restore this pretrained model """
                            """before beginning any training.""")
+tf.app.flags.DEFINE_boolean('multilabel', False,
+                            """Train with multiple labels.""")
 
 # **IMPORTANT**
 # Please note that this learning rate schedule is heavily dependent on the

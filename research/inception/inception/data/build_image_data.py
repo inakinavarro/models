@@ -97,6 +97,8 @@ tf.app.flags.DEFINE_boolean('sparse_labels', False,
                             multi-label training.""")
 tf.app.flags.DEFINE_boolean('generate_from_csv', True,
                             """Generate dataset from csv file""")
+tf.app.flags.DEFINE_boolean('multilabel', False,
+                            """Generate multiple labels from csv columns.""")
 # The labels file contains a list of valid labels are held in this file.
 # Assumes that the file contains entries as such:
 #   dog
@@ -340,6 +342,18 @@ def _process_image_files(name, filenames, texts, labels, num_shards):
   sys.stdout.flush()
 
 
+def _shuffle_data_labels(filenames, texts, labels):
+  # Shuffle the ordering of all image files in order to guarantee
+  # random ordering of the images with respect to label in the
+  # saved TFRecord files. Make the randomization repeatable.
+  shuffled_index = list(range(len(filenames)))
+  random.seed(12345)
+  random.shuffle(shuffled_index)
+  filenames = [filenames[i] for i in shuffled_index]
+  texts = [texts[i] for i in shuffled_index]
+  labels = [labels[i] for i in shuffled_index]
+  return filenames, texts, labels  
+
 def _find_image_files(data_dir, labels_file):
   """Build a list of all images files and labels in the data set.
 
@@ -401,23 +415,69 @@ def _find_image_files(data_dir, labels_file):
           label_index, len(labels)))
     label_index += 1
 
-  # Shuffle the ordering of all image files in order to guarantee
-  # random ordering of the images with respect to label in the
-  # saved TFRecord files. Make the randomization repeatable.
-  shuffled_index = list(range(len(filenames)))
-  random.seed(12345)
-  random.shuffle(shuffled_index)
-
-  filenames = [filenames[i] for i in shuffled_index]
-  texts = [texts[i] for i in shuffled_index]
-  labels = [labels[i] for i in shuffled_index]
-
   print('Found %d JPEG files across %d labels inside %s.' %
-        (len(filenames), len(unique_labels), data_dir))
-  return filenames, texts, labels
+      (len(filenames), len(unique_labels), data_dir))
+
+  return _shuffle_data_labels(filenames, texts, labels)
+
+def _get_files_classes_csv(split_name, data_dir, labels_file):
+  """Build a list of all images files and classes in the data set.
+
+  Args:
+    split_name: string, name of the split or subdataset to process
+      It allows acces to the corresponding .csv file starting with
+      that name
+
+    data_dir: string, path to the root directory the dataset
+
+      The csv files contained in this folder have contain the
+      relative paths to images and columns of labels.
+
+    labels_file: string, path to the labels file.
+
+      The list of the column which defines the classes. The value in
+      the column represent thes class.
+
+  Returns:
+    filenames: list of strings; each string is a path to an image file.
+    texts: list of empty strings
+    labels: list of integer or list of integer; each integer identifies
+    for the class.
+  """
+  path_csv = os.path.join(data_dir, split_name + '.csv')
+  print('Obtaining list of input files and labels from %s.' % path_csv)
+  unique_labels = [l.strip() for l in tf.gfile.FastGFile(
+      labels_file, 'r').readlines()]
+
+  # only one column indicating classes
+  assert len(unique_labels) == 1
+
+  df = pd.read_csv(path_csv)
+  df['abs_path'] = df.apply(lambda x: os.path.join(data_dir,
+                                                    x['rel_filepath']), axis=1)
+  df['text'] = ''
+  labels = df[unique_labels[0]].tolist()
+  texts = df['text'].tolist()
+  filenames = df['abs_path'].tolist()
+
+  if not FLAGS.sparse_labels:
+    # convert sparse encoding to dense
+    num_classes = max(labels) + 1
+    onehot_encoded = list()
+    for value in labels:
+      one_hot_value = [0 for _ in range(num_classes)]
+      one_hot_value[value] = 1
+      onehot_encoded.append(one_hot_value)
+    labels = onehot_encoded
+  
+  print('Found %d JPEG files across %d labels inside %s.' %
+      (len(filenames), len(unique_labels), data_dir))
+
+  return _shuffle_data_labels(filenames, texts, labels)
+
 
 def _get_files_labels_csv(split_name, data_dir, labels_file):
-  """Build a list of all images files and labels in the data set.
+  """Build a list of all images files and for multilabel for the data set.
 
   Args:
     split_name: string, name of the split or subdataset to process
@@ -447,43 +507,20 @@ def _get_files_labels_csv(split_name, data_dir, labels_file):
   print('Obtaining list of input files and labels from %s.' % path_csv)
   unique_labels = [l.strip() for l in tf.gfile.FastGFile(
       labels_file, 'r').readlines()]
-
-  # only one column indicating classes for now
-  assert len(unique_labels) == 1
-
   df = pd.read_csv(path_csv)
   df['abs_path'] = df.apply(lambda x: os.path.join(data_dir,
                                                     x['rel_filepath']), axis=1)
   df['text'] = ''
-  labels = df[unique_labels[0]].tolist()
+  df['multi_label'] = df[unique_labels].values.tolist()
+
+  labels = df['multi_label'].tolist()
   texts = df['text'].tolist()
   filenames = df['abs_path'].tolist()
 
-  if not FLAGS.sparse_labels:
-    # convert sparse encoding to dense
-    num_classes = max(labels) + 1
-    onehot_encoded = list()
-    for value in labels:
-      one_hot_value = [0 for _ in range(num_classes)]
-      one_hot_value[value] = 1
-      onehot_encoded.append(one_hot_value)
-    labels = onehot_encoded
-
-  # Shuffle the ordering of all image files in order to guarantee
-  # random ordering of the images with respect to label in the
-  # saved TFRecord files. Make the randomization repeatable.
-  shuffled_index = list(range(len(filenames)))
-  random.seed(12345)
-  random.shuffle(shuffled_index)
-
-  filenames = [filenames[i] for i in shuffled_index]
-  texts = [texts[i] for i in shuffled_index]
-  labels = [labels[i] for i in shuffled_index]
-
   print('Found %d JPEG files across %d labels inside %s.' %
-        (len(filenames), len(unique_labels), data_dir))
-  return filenames, texts, labels
+      (len(filenames), len(unique_labels), data_dir))
 
+  return _shuffle_data_labels(filenames, texts, labels)
 
 
 def _process_dataset(name, directory, num_shards, labels_file):
@@ -495,8 +532,11 @@ def _process_dataset(name, directory, num_shards, labels_file):
     num_shards: integer number of shards for this data set.
     labels_file: string, path to the labels file.
   """
-  if FLAGS.generate_from_csv:
+  if FLAGS.multilabel:
     filenames, texts, labels = _get_files_labels_csv(name, directory,
+                                                      labels_file)
+  elif FLAGS.generate_from_csv:
+    filenames, texts, labels = _get_files_classes_csv(name, directory,
                                                       labels_file)
   else:
     filenames, texts, labels = _find_image_files(directory, labels_file)

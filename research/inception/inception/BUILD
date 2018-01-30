@@ -101,10 +101,32 @@ py_binary(
     ],
 )
 
+py_binary(
+    name = "gender_eval_multilabel",
+    srcs = [
+        "gender_eval_multilabel.py",
+    ],
+    deps = [
+        ":gender_data",
+        ":inception_eval_multilabel",
+    ],
+)
+
 py_library(
     name = "inception_eval",
     srcs = [
         "inception_eval.py",
+    ],
+    deps = [
+        ":image_processing",
+        ":inception",
+    ],
+)
+
+py_library(
+    name = "inception_eval_multilabel",
+    srcs = [
+        "inception_eval_multilabel.py",
     ],
     deps = [
         ":image_processing",

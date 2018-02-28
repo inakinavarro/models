@@ -31,14 +31,14 @@ class GenderData(Dataset):
 
   def num_classes(self):
     """Returns the number of classes in the data set."""
-    return 2
+    return 4
 
   def num_examples_per_epoch(self):
     """Returns the number of examples in the data subset."""
     if self.subset == 'train':
-      return 4350
+      return 160000
     if self.subset == 'validation':
-      return 650
+      return 19000
 
   def download_message(self):
     """Instruction to download and extract the tarball from Flowers website."""

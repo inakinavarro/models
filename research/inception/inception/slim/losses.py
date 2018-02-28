@@ -164,7 +164,7 @@ def cross_entropy_loss(logits, one_hot_labels, label_smoothing=0,
       smooth_negatives = label_smoothing / num_classes
       one_hot_labels = one_hot_labels * smooth_positives + smooth_negatives
     cross_entropy = tf.contrib.nn.deprecated_flipped_softmax_cross_entropy_with_logits(
-        logits, one_hot_labels, name='xentropy')
+                              logits, one_hot_labels, name='xentropy')
 
     weight = tf.convert_to_tensor(weight,
                                   dtype=logits.dtype.base_dtype,
@@ -199,6 +199,41 @@ def sigmoid_cross_entropy_loss(logits, one_hot_labels, label_smoothing=0,
       one_hot_labels = one_hot_labels * smooth_positives + smooth_negatives
     cross_entropy = tf.nn.sigmoid_cross_entropy_with_logits(
       labels=one_hot_labels, logits=logits, name='sigmxentropy')
+
+    weight = tf.convert_to_tensor(weight,
+                                  dtype=logits.dtype.base_dtype,
+                                  name='loss_weight')
+    loss = tf.multiply(weight, tf.reduce_mean(cross_entropy), name='value')
+    tf.add_to_collection(LOSSES_COLLECTION, loss)
+    return loss
+
+def weighted_sigmoid_cross_entropy_loss(logits, one_hot_labels,
+                        label_smoothing=0, weight=1.0, scope=None):
+  """Define a Sigmoid Cross Entropy loss using sigmoid_cross_entropy_with_logits.
+
+  It can scale the loss by weight factor, and smooth the labels.
+
+  Args:
+    logits: [batch_size, num_classes] logits outputs of the network .
+    one_hot_labels: [batch_size, num_classes] target one_hot_encoded labels.
+    label_smoothing: if greater than 0 then smooth the labels.
+    weight: scale the loss by this factor.
+    scope: Optional scope for name_scope.
+
+  Returns:
+    A tensor with the sigmoid_cross_entropy loss.
+  """
+  logits.get_shape().assert_is_compatible_with(one_hot_labels.get_shape())
+  with tf.name_scope(scope, 'WeightedSigmoidCrossEntropyLoss', [logits, one_hot_labels]):
+    num_classes = one_hot_labels.get_shape()[-1].value
+    one_hot_labels = tf.cast(one_hot_labels, logits.dtype)
+    if label_smoothing > 0:
+      smooth_positives = 1.0 - label_smoothing
+      smooth_negatives = label_smoothing / num_classes
+      one_hot_labels = one_hot_labels * smooth_positives + smooth_negatives
+      weights = tf.constant([1.0, 5.0, 5.0, 5.0])
+    cross_entropy = tf.nn.weighted_cross_entropy_with_logits(
+      one_hot_labels, logits, weights, name='weightedsigmxentropy')
 
     weight = tf.convert_to_tensor(weight,
                                   dtype=logits.dtype.base_dtype,

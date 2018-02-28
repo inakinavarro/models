@@ -57,6 +57,9 @@ tf.app.flags.DEFINE_string('pretrained_model_checkpoint_path', '',
                            """before beginning any training.""")
 tf.app.flags.DEFINE_boolean('multilabel', False,
                             """Train with multiple labels.""")
+tf.app.flags.DEFINE_boolean('weighted_sigmoid_loss', False,
+                            """Train with weighted sigmoid xentropy for
+                            multiple labels.""")
 
 # **IMPORTANT**
 # Please note that this learning rate schedule is heavily dependent on the

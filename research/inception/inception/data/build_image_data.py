@@ -450,6 +450,8 @@ def _get_files_classes_csv(split_name, data_dir, labels_file):
       labels_file, 'r').readlines()]
 
   # only one column indicating classes
+  # the column contains the different possible classes encoded as an integer.
+  # so 0 would be classA; 1, classB; 2 classC, ...
   assert len(unique_labels) == 1
 
   df = pd.read_csv(path_csv)
